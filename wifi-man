@@ -1,0 +1,886 @@
+#!/bin/bash
+# Watch out. The OUI list is a lot ;)
+read -r -d '' OUILIST <<'OUIDUDE'
+Nothing here right now. So massive. Grep won't accept it.
+OUIDUDE
+DEPS="iw rfkill ip systemctl macchanger iwconfig"
+SELECTED=$1
+TASKOPTION=$2
+AVAILABLETASK="--managed --monitor --makevif --delvif --promisc-on --promisc-off --mac --name --tx --ccsp --info"
+EXTRA=$3
+# --------------------------------
+# immediately run rfkill check, to see which phy the user interface is
+RFKILL_ID=""
+
+PHY_LINK=$(readlink -f "/sys/class/net/$SELECTED/phy80211" 2>/dev/null)
+if [ -n "$PHY_LINK" ]; then
+    PHY_NAME=$(basename "$PHY_LINK")
+    RFKILL_ID=$(sudo rfkill 2>/dev/null | awk -v phy="$PHY_NAME" '$3 == phy {print $1}')
+fi
+#-----------------------------------
+if [ $2 ]; then
+    if ! grep -qFe "$2" <<< "$AVAILABLETASK" ; then
+        echo "Error: Invalid option entered."
+        echo "Run with --help for information."
+        exit
+    fi
+else
+    echo "Continuing..." > /dev/null 2>&1
+fi
+
+if ! sudo which $DEPS > /dev/null 2>&1; then
+    echo "Error: You do not have the necessary dependencies"
+    echo "Dependencies are:"
+    echo "1. airmon-ng (Part of the aircrack-ng suite)"
+    echo "2. rfkill"
+    echo "3. iw"
+    echo "4. ip (Part of the iproute2 suite)"
+    echo "5. systemctl"
+    echo "6. macchanger"
+    echo "7. iwconfig (Only used for pretty-printing information)"
+    echo "------------------------------------"
+    echo "Dependencies must be installed for wifi-man to work."
+    echo "wifi-man will not work for now..."
+    echo "Exiting..."
+    exit
+fi
+# run $1 options first, as not to be detected as nonexistent interface, and flagged with an error
+# author option
+if [ "$SELECTED" = "--info" ]; then
+    echo "Author: chiefbigrubberduck"
+    echo "First released in 2026"
+    echo "Licensed under AGPLv3+ license"
+    echo "Homepage: https://github.com/chiefbigrubberduck/wifi-man/"
+    echo "Version: 1.0"
+    exit
+fi
+# print help
+if [ "$SELECTED" = "--help" ]; then
+    echo "Usage: wifi-man <interface> <task>"
+    echo "Portal for managing wireless devices"
+    echo "Tasks:
+--managed (-f) GOOD | Set card into managed mode, use -f to force mode change, bypassing auto-mode detection.
+--monitor (-f) GOOD | Set card into monitor mode, use -f to force mode change, bypassing auto-mode detection.
+--mac GOOD | Bring up MAC changing options
+--name GOOD | Change interface name
+--tx GOOD | Change TX Power
+--ccsp GOOD | Change country code
+--promisc-on GOOD | Set promiscuous mode: On
+--promisc-off GOOD | Set promiscuous mode: Off
+--makevif <managed/monitor> GOOD | Make an interface (Virtual Interface), specify a mode as the second argument.
+--delvif (Not working, under development) | Delete an interface (Virtual Interface)
+--info GOOD | Print card specific information
+Running only wifi-man <interface> will bring up a selective menu."
+    echo "---------------------------------------
+Options/Non-Interface requiring tasks:
+--help - Print this help screen GOOD
+--info - Print project-relevant information GOOD
+--print | Show all interfaces GOOD
+--host | Change hostname (temporary and permanent) GOOD
+--listcc | Print all country codes that can be used with --ccsp GOOD
+--phyinfo | Print PHY information GOOD
+--nlmon | Make NETLINK monitor interface GOOD
+--lookup (Not working, under development) | Lookup MAC address manufacturer
+-----------------------------------------
+Run all Options/Non-Interface requiring tasks in place of a normal task, see usage below:
+Option usage: wifi-man <option>"
+    exit
+fi
+
+# this is that easter egg ;)
+if [ "$SELECTED" = "--unlocked" ]; then
+    echo "Unlocked mode initialized..."
+    echo ""
+    sleep 0.2
+    echo "W               W  IIIII  FFFFFFF  IIIII             M     M             A       N      N"
+    sleep 0.2
+    echo " W             W     I    F          I              M M   M M           A A      N N    N"
+    sleep 0.2
+    echo "  W     W     W      I    FFFFF      I    -----    M    M    M         A   A     N  N   N"
+    sleep 0.2
+    echo "   W    W    W       I    F          I            M     M     M       A AAA A    N   N  N"
+    sleep 0.2
+    echo "    W   W   W        I    F          I           M             M     A       A   N    N N"
+    sleep 0.2
+    echo "     WWW WWW       IIIII  F        IIIII        M               M   A         A  N     NN"
+    sleep 0.3
+    echo ""
+    echo "Unlocked mode provides extra info about some of the functions..."
+    echo "--------------------------------------------"
+    sleep 0.3
+    read -r -p "Select one to learn more about it...
+----------------------------------
+1. Setting card into Monitor mode
+2. Setting card into Managed mode
+3. Changing MAC address
+4. Changing Interface name
+5. Fuzzing country codes
+6. Changing TX Power
+7. Changing Hostname
+Enter Number: " INFOCHOICE
+    if ! [[ "$INFOCHOICE" =~ ^[1-7]$ ]]; then
+        echo "Invalid choice."
+        echo "Exiting..."
+        exit
+    fi
+    echo "----------------------------------------------------"
+    if [ "$INFOCHOICE" = "1" ]; then
+        echo "Setting the card into monitor mode utilizes the ip, rfkill and iw
+Alternative methods exist, but these are the most known and stable methods
+The card is first set down with ip link, set into monitor mode with iw, rfkill unblocks it, and ip link is used to bring it back up.
+Using airmon-ng check kill in conjunction with these commands can help clear known issues of NetworkManager taking control and making
+scanning and injection difficult and sometimes impossible, check kill, kills interfering processes to help reslove these issues.
+Monitor mode allows you to freely inject, scan, and capture on all supported channels. You can not connect nor bind yourself to a Network while in monitor mode. You must be in managed mode."
+        exit
+    fi
+
+    if [ "$INFOCHOICE" = "2" ]; then
+        echo "Setting the card into managed mode uses iw, rfkill, and ip. The card is put down with ip link, and then changed to managed mode with iw. Afterward it is unblocked with rfkill and brought back up with ip link.
+When using this function you will see an option, restart with NetworkManager. This restarts the NetworkManager interface and disconnects all live connections, this MUST be used, to restore the wifi option IF you used airmon-ng check kill, otherwise it is not necessary. Restarting NetworkManager after airmon-ng check kill restores the network option in your dashboard, allowing you to connect to the internet.
+Managed mode is what wi-fi cards are set to by default and allows you to connect to Network's and exchange packets."
+        exit
+    fi
+
+    if [ "$INFOCHOICE" = "3" ]; then
+        echo "Changing the MAC address uses the macchanger utility and provides a smooth frontend for macchanging. You can use other tools such as ifconfig, and ip, but macchanger provides extra options and a more polished frontend. MAC changing is often used in pen-testing operations or for Network diagnostics, a MAC address defines what your wi-fi card is, the manufacturer and model. Every MAC address is unique, often no other MAC address is like yours, vice versa, up until you decide to spoof or change it."
+        exit
+    fi
+
+    if [ "$INFOCHOICE" = "4" ]; then
+        echo "Changing the interface name uses ip link and rfkill. The card is first put down with ip link, changed with ip link, freed with rfkill, and then alas brought back up with ip link. This does not involve iw at all and solely uses rfkill and ip. Note: ip link is a subdivision of tools in the ip suite, ip suite being part of the iproute2 suite. The interface name change is useful if you have a long interface name, and don't want to type a long set of characters every time."
+        exit
+    fi
+
+    if [ "$INFOCHOICE" = "5" ]; then
+        echo "Changing the kernel country code is done through iw, ip link is used to set the selected card down so changes can take effect. Rfkill is as usual used to unblock the card and bring it back up. This change is kernel wide, but can be reversed. This change is done through a sudo shell with iw, but since this is still only su-level it can be overidden by the system, such as NetworkManager, this is not common, but if certain Wi-Fi card's have a country code hardcoded into them they may not accept it. The change will register kernel-wide but if a certain card accepts the change is another complication. On an ideal setup everything should work fine, but this is still under development and will need some tweaking. Changing the country code is often useful, as it can unlock more scanable channels. By default your wi-fi card is changed for whatever country or internal time your machine is set for, changing this can let you access certain channels that are normally prohibited in said country, channels that are used by other more governmental services such as the military, etc. Many countries do ban using forbidden channels not included in that default country code, and will heavily prosecute. Consider yourself warned. The other benefit of changing your country code is to increase that max settable TX power. By default country codes wil cap your card at a TX Limit, and changing them to a looser country can allow higher TX power. Once again, broadcasting on locked channels in your country is often expressly forbidden and said country will prosecute you. Consider yourself warned, again. You can check what channels your card can scan on by running: sudo iwlist <interface> channel, this will print all available channels, keep in mind these can change when the country code is changed."
+        exit
+    fi
+    echo "----------------------------------------------------"
+    exit
+fi
+
+PRINTSTUFF() {
+    echo "Printing all detected interfaces..."
+    echo "-----------------------------------"
+    sudo iwconfig || { echo "Error: Printing interfaces failed..."; exit; }
+    echo "-----------------------------------"
+    echo "Exiting..."
+    exit
+}
+
+LISTCODES() {
+echo "- US - United States
+- CA - Canada
+- JP3 - Japan
+- DE - Germany
+- NL - Netherlands
+- IT - Italy
+- PT - Portugal
+- LU - Luxembourg
+- NO - Norway
+- FI - Finland
+- DK - Denmark
+- CH - Switzerland
+- CZ - Czech Republic
+- ES - Spain
+- GB - United Kingdom
+- KR - Republic of Korea (South Korea)
+- CN - China
+- FR - France
+- HK - Hong Kong
+- SG - Singapore
+- TW - Taiwan
+- BR - Brazil
+- IL - Israel
+- SA - Saudi Arabia
+- LB - Lebanon
+- AE - United Arab Emirates
+- ZA - South Africa
+- AR - Argentina
+- AU - Australia
+- AT - Austria
+- BO - Bolivia
+- CL - Chile
+- GR - Greece
+- IS - Iceland
+- IN - India
+- IE - Ireland
+- KW - Kuwait
+- NZ - New Zealand
+- PL - Poland
+- PR - Puerto Rico
+- TH - Thailand
+- UY - Uruguay
+- PA - Panama
+- RU - Russia
+- KW - Kuwait
+- LI - Liechtenstein
+- LT - Lithuania
+- MX - Mexico
+- MA - Morocco
+- NZ - New Zealand
+- PL - Poland
+- PR - Puerto Rico
+- SK - Slovak Republic
+- SI - Slovenia
+- TH - Thailand
+- UY - Uruguay
+- PA - Panama
+- RU - Russia
+- EG - Egypt
+- TT - Trinidad and Tobago
+- TR - Turkey
+- CR - Costa Rica
+- EC - Ecuador
+- HN - Honduras
+- KE - Kenya
+- UA - Ukraine
+- VN - Vietnam
+- BG - Bulgaria
+- CY - Cyprus
+- EE - Estonia
+- MU - Mauritius
+- RO - Romania
+- CS - Serbia and Montenegro
+- ID - Indonesia
+- PE - Peru
+- VE - Venezuela
+- JM - Jamaica
+- BH - Bahrain
+- OM - Oman
+- JO - Jordan
+- BM - Bermuda
+- CO - Colombia
+- DO - Dominican Republic
+- GT - Guatemala
+- PH - Philippines
+- LK - Sri Lanka
+- SV - El Salvador
+- TN - Tunisia
+- PK - Islamic Republic of Pakistan
+- QA - Qatar
+- DZ - Algeria
+Try to find the hidden option... ;)
+"
+exit
+}
+
+# Hostname change function
+SETHOSTNAME() {
+    echo "Current Hostname: $(hostname)"
+    read -r -p "Should the hostname change be Temporary (1) or Permanent (2)? Enter a number: " HOSTCHOICE
+    if ! [[ "$HOSTCHOICE" =~ ^[1-2]$ ]]; then
+        echo "Error: Invalid number entered. Enter either 1 or 2."
+        exit
+    fi
+    if [ "$HOSTCHOICE" = "1" ]; then
+        echo "Changing hostname temporarily... This will change after a reboot."
+        read -r -p "New hostname, enter a connected set of characters: " HOSTNAMENEW
+        sudo hostname "$HOSTNAMENEW"
+        echo "Hostname set to: "$HOSTNAMENEW""
+        exec bash
+        exit
+        exit
+        exit
+    fi
+    if [ "$HOSTCHOICE" = "2" ]; then
+        echo "Changing hostname permanently..."
+        read -r -p "New hostname, enter a connected set of characters: " HOSTNAMENEWPERM
+        echo ""$HOSTNAMENEWPERM"" | sudo tee /etc/hostname > /dev/null
+        sudo hostname "$HOSTNAMENEWPERM"
+        echo "Hostname permanently set to: "$HOSTNAMENEWPERM""
+        exec bash
+        exit
+        exit
+        exit
+    fi
+}
+
+# Print phy info logic
+PRINTPHYSTUFF() {
+echo "This will print a lot of output... Continuing in: "
+for COUNT in 3... 2... 1...; do
+    printf "\r$COUNT "
+    sleep 1
+done
+echo
+sudo iw list
+exit
+}
+
+MACLOOKUP() {
+echo "MAC Lookup options are in development, so not currently working."
+exit
+
+# read -r -p "Enter MAC address: " MACTOCHECK
+# echo "Looking..."
+# grep -i "^${MACTOCHECK}" "$OUILIST"
+# exit
+
+}
+
+# Make NETLINK Monitor iface function
+MAKENLMON() {
+read -r -p "Interface name: " NLMONNAME
+sudo ip link add dev "$NLMONNAME" type nlmon
+read -r -p "Should "$NLMONNAME" be set up? [y/N]: " UPDOWNFORNLMON
+if [[ "$UPDOWNFORNLMON" =~ ^[yY][eE]?[sS]?$ ]]; then
+    sudo ip link set "$UPDOWNFORNLMON" up
+    echo ""$NLMONNAME" set up."
+    echo ""$NLMONNAME" can be deleted via ip link,"
+    echo "using the command: sudo ip link delete "$NLMONNAME""
+else
+    echo ""$NLMONNAME" kept down."
+    echo ""$NLMONNAME" can be deleted via ip link,"
+    echo "using the command: sudo ip link delete "$NLMONNAME""
+fi
+exit
+}
+
+if [ "$SELECTED" = "--print" ]; then
+    PRINTSTUFF
+fi
+
+if [ "$SELECTED" = "--host" ]; then
+    SETHOSTNAME
+fi
+
+if [ "$SELECTED" = "--phyinfo" ]; then
+    PRINTPHYSTUFF
+fi
+
+if [ "$SELECTED" = "--lookup" ]; then
+    MACLOOKUP
+fi
+
+if [ "$SELECTED" = "--nlmon" ]; then
+    MAKENLMON
+fi
+
+if [ "$SELECTED" = "--listcc" ]; then
+    LISTCODES
+fi
+
+# after non interface options, run the interface check, so tasks and menu stuff is still intact and actually happens
+if ! sudo iw dev "$SELECTED" info > /dev/null 2>&1; then
+    echo "Error: Card not detected..."
+    echo "Usage: wifi-man <interface> <task> "
+    echo "Option Usage: wifi-man <option/secondary task>"
+    echo "Run with --help for information regarding task's and options"
+    echo "Exiting..."
+    exit
+fi
+
+# Monitor mode function
+SETMONITORMODE() {
+echo "Card "$SELECTED" exists..."
+echo "--------------------------"
+# Force detection bypass.
+if [ "$EXTRA" = "-f" ]; then
+    read -r -p "Using mode-detection bypass, proceed? [y/N]: " YAGONNAPROCEED
+    if [[ "$YAGONNAPROCEED" =~ ^[yY][eE]?[sS]?$ ]]; then
+        read -p "Do you want to use airmon-ng check kill? This can help with injection and scannning. [y/N]: " CHECKKILL
+        if [[ "$CHECKKILL" =~ ^[yY][eE]?[sS]?$ ]]; then
+            echo "Killing problematic daemons with airmon-ng check kill..."
+            sudo airmon-ng check kill || { echo "Error: Running airmon-ng check kill experienced issues..."; exit; }
+            echo "Setting card down..."
+            sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+            echo "Setting monitor mode..."
+            sudo iw dev "$SELECTED" set type monitor || { echo "Error: Setting "$SELECTED" into monitor mode with iw failed..."; exit; }
+            echo "Freeing with rfkill..."
+            sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+            echo "Bringing card back up..."
+            sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+            echo "Done... "$SELECTED" is in monitor mode."
+            exit
+        else
+            echo "Setting card into monitor mode without airmon-ng check kill..."
+            echo "Setting card down..."
+            sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+            echo "Setting monitor mode..."
+            sudo iw dev "$SELECTED" set type monitor || { echo "Error: Setting "$SELECTED" into monitor mode with iw failed..."; exit; }
+            echo "Freeing with rfkill..."
+            sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+            echo "Bringing card back up..."
+            sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+            echo "Done... "$SELECTED" is in monitor mode."
+            exit
+        fi
+    else
+        echo "Not setting "$SELECTED" into monitor mode..."
+        echo "Exiting..."
+        exit
+    fi
+fi
+
+# Auto-detection protocol. If iw is somehow wrong this will fail, but if iw was faulty i wouldn't have even made wifi-man ;).
+if sudo iw dev "$SELECTED" info | grep -q "type monitor"; then
+    echo "Error: $SELECTED is already in monitor mode!"
+    echo "If you believe this is false, or want to bypass this, use -f in conjunction with this command."
+    echo "Exiting..."
+    exit
+fi
+
+read -r -p "Proceed to set "$SELECTED" into monitor mode? [y/N]: " YAGONNAPROCEED
+if [[ "$YAGONNAPROCEED" =~ ^[yY][eE]?[sS]?$ ]]; then
+    read -p "Do you want to use airmon-ng check kill? This can help with injection and scannning. [y/N]: " CHECKKILL
+    if [[ "$CHECKKILL" =~ ^[yY][eE]?[sS]?$ ]]; then
+        echo "Killing problematic daemons with airmon-ng check kill..."
+        sudo airmon-ng check kill || { echo "Error: Running airmon-ng check kill experienced issues..."; exit; }
+        echo "Setting card down..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+        echo "Setting card into monitor mode..."
+        sudo iw dev "$SELECTED" set type monitor || { echo "Error: Setting "$SELECTED" into monitor mode with iw failed..."; exit; }
+        echo "Unblocking with rfkill..."
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+        echo "Setting card back up..."
+        sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+        echo "Done... "$SELECTED" is in monitor mode."
+        exit
+    else
+        echo "Setting card into monitor mode without airmon-ng check kill..."
+        echo "Setting card down..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+        echo "Setting card into monitor mode..."
+        sudo iw dev "$SELECTED" set type monitor || { echo "Error: Setting "$SELECTED" into monitor mode with iw failed..."; exit; }
+        echo "Unblocking with rfkill..."
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+        echo "Setting card back up..."
+        sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+        echo "Done... "$SELECTED" is in monitor mode."
+        exit
+    fi
+else
+    echo "Not setting "$SELECTED" into monitor mode..."
+    echo "Exiting..."
+    exit
+fi
+
+exit
+}
+# Managed mode function
+SETMANAGEDMODE() {
+# Force detection bypass.
+if [ "$EXTRA" = "-f" ]; then
+    read -r -p "Using mode-detection bypass, proceed? [y/N]: " FORCEMAN
+    if [[ "$FORCEMAN" =~ ^[yY][eE]?[sS]?$ ]]; then
+        echo "Setting card down..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+        echo "Setting into managed mode..."
+        sudo iw dev "$SELECTED" set type managed || { echo "Error: Setting "$SELECTED" into managed mode with iw failed..."; exit; }
+        echo "Unblocking card with rfkill"
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+        echo "Setting card back up..."
+        sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+        echo -n "Do you want to restart NetworkManager? (Recommended) This will disconnect all wifi networks from any other active cards. [y/N]: "
+        read NETWORKCHOICE
+        if [[ "$NETWORKCHOICE" =~ ^[yY][eE]?[sS]?$ ]]; then
+            echo "Restarting NetworkManager"
+            sudo systemctl start NetworkManager || { echo "Error: Restarting NetworkManager failed..."; exit; }
+            echo "Done... "$SELECTED" is now in managed mode."
+        else
+            echo "Not restarting NetworkManager... "$SELECTED" is in managed mode."
+            exit
+        fi
+    else
+        echo "Not setting "$SELECTED" into managed mode..."
+        echo "Exiting..."
+        exit
+    fi
+exit
+fi
+
+# Auto-detection protocol. If iw is somehow wrong this will fail, but if iw was faulty i wouldn't have even made wifi-man ;).
+if sudo iw dev "$SELECTED" info | grep -q "type managed"; then
+    echo "Error: $SELECTED is already in managed mode!"
+    echo "If you believe this is false, or want to bypass this, use -f in conjunction with this command."
+    echo "Exiting..."
+    exit
+fi
+
+# Normal logic
+read -r -p "Proceed to set "$SELECTED" into managed mode? [y/N]: " FORCEMAN
+if [[ "$FORCEMAN" =~ ^[yY][eE]?[sS]?$ ]]; then
+    echo "Setting card down..."
+    sudo ip link set "$SELECTED" down || { echo "Error: Setting "$SELECTED" down with ip link failed..."; exit; }
+    echo "Setting into managed mode..."
+    sudo iw dev "$SELECTED" set type managed || { echo "Error: Setting "$SELECTED" into managed mode with iw failed..."; exit; }
+    echo "Unblocking card with rfkill"
+    sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Unblocking "$SELECTED" with rfkill failed..."; exit; }
+    echo "Setting card back up..."
+    sudo ip link set "$SELECTED" up || { echo "Error: Setting "$SELECTED" back up with ip link failed..."; exit; }
+    echo -n "Do you want to restart NetworkManager? (Recommended) This will disconnect all wifi networks from any other active cards. [y/N]: "
+    read NETWORKCHOICE
+    if [[ "$NETWORKCHOICE" =~ ^[yY][eE]?[sS]?$ ]]; then
+        echo "Restarting NetworkManager"
+        sudo systemctl start NetworkManager || { echo "Error: Restarting NetworkManager failed..."; exit; }
+        echo "Done... "$SELECTED" is now in managed mode."
+    else
+        echo "Not restarting NetworkManager... "$SELECTED" is in managed mode."
+        exit
+    fi
+else
+    echo "Not setting "$SELECTED" into managed mode..."
+    echo "Exiting..."
+    exit
+fi
+exit
+}
+
+# Set MAC addr function
+SETMAC(){
+    echo "Card exists..."
+    read -r -p "Select MAC changing method?
+----------------------------
+1. Input specific MAC address
+2. Randomized MAC
+3. Revert to factory MAC address
+4. Set random Manufacturer MAC
+----------------------------
+Enter number: " MACCHOICE
+    if ! [[ "$MACCHOICE" =~ ^[1-4]$ ]]; then
+        echo "Invalid choice."
+        echo "Exiting..."
+        exit
+    fi
+    if [ "$MACCHOICE" = "1" ]; then
+        read -r -p "Enter the specific MAC address you want (Must be 12 digits, every 2 digits separated by commas): " MACINPUT
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo macchanger -m "$MACINPUT" "$SELECTED" || { echo "Error: Setting MAC address failed..."; exit; }
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "Done, MAC address changed to: "$MACINPUT""
+        exit
+    fi
+
+    if [ "$MACCHOICE" = "2" ]; then
+        echo "Setting randomized MAC address..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo macchanger -r -b "$SELECTED" || { echo "Error: Setting MAC address failed..."; exit; }
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "Done... MAC randomized."
+        exit
+    fi
+
+    if [ "$MACCHOICE" = "3" ]; then
+        read -r -p "Are you sure you want to revert to your factory MAC address? [y/N]: " FACTORYCHOICE
+        if [[ "$FACTORYCHOICE" =~ ^[yY][eE]?[sS]?$ ]]; then
+            echo "Setting to factory MAC address..."
+            sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+            sudo macchanger -p "$SELECTED" || { echo "Error: Setting MAC address failed..."; exit; }
+            sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+            sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+            echo "Reverted to factory MAC address..."
+            exit
+        else
+            echo "Quitting... Not reverting to factory MAC"
+            exit
+        fi
+    fi
+
+    if [ "$MACCHOICE" = "4" ]; then
+        echo "Setting random manufacturer MAC..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo macchanger -A "$SELECTED" || { echo "Error: Setting MAC address failed..."; exit; }
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "Manufacturer MAC set."
+        exit
+    fi
+exit
+}
+
+# Name changer function
+SETNAMECHANGE() {
+echo "Card exists..."
+    echo "Note: Subsequent commands requiring an interface name, will use the new interface name."
+    echo "-----------------------"
+    read -r -p "Proceed? [y/N]: " INTERFACEYES
+    if [[ "$INTERFACEYES" =~ ^[yY][eE]?[sS]?$ ]]; then
+        read -r -p "What do you want the name of the new interface to be (Must be a string of characters, no multiple words)? Enter: " INTERFACENAMENEW
+        echo "Changing interface name..."
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo ip link set dev "$SELECTED" name "$INTERFACENAMENEW" || { echo "Error: Changing interface name failed, did you enter a valid word?"; exit; }
+        echo "Bringing card back up..."
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$INTERFACENAMENEW" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "Done... Interface name changed."
+        echo "Interface name: "$INTERFACENAMENEW""
+        echo "Name change will reset after reboot."
+        exit
+    else
+        echo "Not changing interface name..."
+        exit
+    fi
+exit
+}
+
+# TX Power function set
+SETTXPOWER() {
+read -r -p "Enter chosen TX Power (2000-3000 recommended, more can harm you Wi-Fi card): " TXCHOICE
+    if [[ ! "$TXCHOICE" =~ ^[0-9]+$ ]]; then
+        echo "Invalid TX choice. Try again."
+        exit
+    fi
+    read -r -p "Setting TX Power to: "$TXCHOICE", proceed? [y/N]: " TXVERIFY
+    if [[ "$TXVERIFY" =~ ^[yY][eE]?[sS]?$ ]]; then
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo iw dev "$SELECTED" set txpower fixed $TXCHOICE || { echo "Failed setting TX Power... Your card may have a country code enforced TX limit"; exit; }
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "TX Power set to: "$TXCHOICE""
+        exit
+    fi
+    exit
+}
+
+# Country code change function
+CCSP() {
+    echo "Card exists..."
+    echo -n "This will change your machine, Wi-Fi country code, system-wide."
+    echo " Some recommended countries for use are:
+Costa Rica - CR
+United States - US
+Japan - JP3
+------------------------------
+For a full list, run wifi-man as: wifi-man --listcc"
+    echo "----------------------------"
+    read -r -p "Do you want to proceed? [Y/n] " COUNTRYPROCEED
+    if [[ "$COUNTRYPROCEED" =~ ^[yY][eE]?[sS]?$ ]]; then
+        echo "Proceeding..."
+        read -r -p "Enter a valid ISO/IEC, 3166-1, alpha2 code (Country code): " DESIREDCOUNTRY
+        sudo iw reg get > /dev/null
+        sudo ip link set "$SELECTED" down || { echo "Error: Setting card down with ip link failed..."; exit; }
+        sudo iw reg set "$DESIREDCOUNTRY" || { echo "Error: Setting country code with iw failed..."; exit; }
+        sudo rfkill unblock "$RFKILL_ID" || { echo "Error: Freeing card with rfkill failed..."; exit; }
+        sudo ip link set "$SELECTED" up || { echo "Error: Putting card back up with ip link failed..."; exit; }
+        echo "Country code changed to: "$DESIREDCOUNTRY""
+        exit
+    else
+        echo "Not changing interface country code..."
+        echo "Exiting..."
+        exit
+    fi
+exit
+}
+
+# Promiscuous mode functions
+SETPROMISCON() {
+    echo "Turning Promiscuous mode on for "$SELECTED"..."
+    sudo ip link "$SELECTED" set promisc on || { echo "Error: Turning on promiscuous for "$SELECTED" failed..."; exit; }
+    echo "Promiscuous mode turned on for "$SELECTED"..."
+    exit
+}
+SETPROMISCOFF() {
+    echo "Turning Promiscuous mode off for "$SELECTED"..."
+    sudo ip link "$SELECTED" set promisc off || { echo "Error: Turning off promiscuous for "$SELECTED" failed..."; exit; }
+    echo "Promiscuous mode turned off for "$SELECTED"..."
+    exit
+}
+
+# Make a VIF
+# Important:  sudo iw dev wlp4s0 info | grep -Eo 'phy [0-9999999999]+' will find the phy name from the interface!!!!!!!!!!
+# Important: sudo iw dev | awk '/Interface/{print $2}' can get all wireless ifaces
+# Important: sudo iw dev | awk '/phy#/{phy=$1} /Interface/{print phy, $2}' gets iface with phy.
+# Get phy and ifaceamount sudo iw dev | awk '/phy#/{phy=$1} /Interface/{count[phy]++} END{for(p in count) print p, count[p]}' | sort -t'#' -k2 -n
+# sudo iw dev | awk '/phy#/{phy=$1} /Interface/{count[phy]++} END{for(p in count) print p, count[p]}' | awk '{print $2}' | grep -w 1
+MAKEVIF() {
+IFACEPHY=$(sudo iw dev "$SELECTED" info | grep -Eo 'phy [0-9999999999]+' | tr -d '[:space:]')
+echo "Making interface..."
+if [[ $EXTRA="managed" || $EXTRA="monitor" ]]; then
+    echo "Continuing..." > /dev/null
+else
+    echo "Error: Invalid interface mode selected."
+    echo "Exiting..."
+    exit
+fi
+read -r -p "Enter new interface name: " MAKEVIFNAME
+echo "----------------------------"
+read -r -p "Interface will be...
+Name: "$MAKEVIFNAME"
+Type: "$EXTRA"
+Proceed? [y/N]: " VIFCONFIRMATION
+
+if [[ "$VIFCONFIRMATION" =~ ^[yY][eE]?[sS]?$ ]]; then
+    echo "----------------"
+    echo "Proceeding..."
+    sudo iw phy "$IFACEPHY" interface add "$MAKEVIFNAME" type "$EXTRA"
+    echo "Made interface: "$MAKEVIFNAME""
+    echo "Done..."
+    exit
+else
+    echo "----------------"
+    echo "Not proceeding..."
+    echo "Exiting..."
+    exit
+fi
+exit
+
+}
+# Delete a VIF
+DELVIF() {
+echo "VIF deletion options are not currently available"
+}
+
+PRINTCARDINFONEW() {
+sudo iw dev "$SELECTED" info
+exit
+}
+
+# beginning of task option logic
+if [ "$TASKOPTION" = "--monitor" ]; then
+     SETMONITORMODE
+fi
+
+if [ "$TASKOPTION" = "--managed" ]; then
+    SETMANAGEDMODE
+fi
+if [ "$TASKOPTION" = "--mac" ]; then
+    SETMAC
+fi
+if [ "$TASKOPTION" = "--name" ]; then
+    SETNAMECHANGE
+fi
+if [ "$TASKOPTION" = "--ccsp" ]; then
+    CCSP
+fi
+
+if [ "$TASKOPTION" = "--tx" ]; then
+    SETTXPOWER
+fi
+
+if [ "$TASKOPTION" = "promisc-on" ]; then
+    SETPROMISCON
+fi
+
+if [ "$TASKOPTION" = "promisc-off" ]; then
+    SETPROMISCOFF
+fi
+
+if [ "$TASKOPTION" = "--makevif" ]; then
+    MAKEVIF
+fi
+
+if [ "$TASKOPTION" = "--delvif" ]; then
+    DELVIF
+fi
+
+if [ "$TASKOPTION" = "--info" ]; then
+    PRINTCARDINFONEW
+fi
+
+# end of task options
+
+# start menu
+echo "Card exists..."
+echo "Selecting card: "$SELECTED""
+read -r -p "Select a task:
+-----------------------------
+1. Set card into Monitor mode
+2. Set card into Managed mode
+3. Change MAC Address
+4. Change interface name (Temporary)
+5. Change Country Code
+6. Show current state of interfaces
+7. Change TX Power
+8. Change Hostname (Temporary or Permanent)
+9. Print PHY information
+10. Turn promiscuous mode on
+11. Turn promiscuous mode off
+12. Create Interface
+13. Remove Interface (Not working, under development)
+14. Print all country codes that can be used with --ccsp
+15. Print information for: "$SELECTED"
+16. Make NETLINK monitor interface
+17. Lookup MAC address (Not working, under development)
+-----------------------------
+Note: For certain features, being disconnected from any networks, and any VPN's to be shutdown is recommended.
+Enter number: " THECHOICE
+echo "-----------------------------"
+# start any chosen arg below
+if [ "$THECHOICE" = "1" ]; then
+    SETMONITORMODE
+fi
+
+if [ "$THECHOICE" = "2" ]; then
+    SETMANAGEDMODE
+fi
+
+if [ "$THECHOICE" = "3" ]; then
+    SETMAC
+fi
+
+if [ "$THECHOICE" = "4" ]; then
+    SETNAMECHANGE
+fi
+
+if [ "$THECHOICE" = "5" ]; then
+    CCSP
+fi
+
+if [ "$THECHOICE" = "6" ]; then
+    PRINTSTUFF
+fi
+
+if [ "$THECHOICE" = "7" ]; then
+    SETTXPOWER
+fi
+
+if [ "$THECHOICE" = "8" ]; then
+    SETHOSTNAME
+fi
+
+if [ "$THECHOICE" = "9" ]; then
+    PRINTPHYSTUFF
+fi
+
+if [ "$THECHOICE" = "10" ]; then
+    SETPROMISCON
+fi
+
+if [ "$THECHOICE" = "11" ]; then
+    SETPROMISCOFF
+fi
+
+if [ "$THECHOICE" = "12" ]; then
+    IFACEPHY=$(sudo iw dev "$SELECTED" info | grep -Eo 'phy [0-9999999999]+' | tr -d '[:space:]')
+    echo "Making Interface..."
+    read -r -p "Enter new VIF name: " MAKEVIFNAME
+    read -r -p "Should the VIF be 1. Monitor or 2. Managed, enter a number: " VIFTYPE
+    if [[ ! "$VIFTYPE" =~ ^[0-2]+$ ]]; then
+        echo "Invalid. Try again."
+    fi
+    if [ "$VIFTYPE" = "1" ]; then
+        VIFTYPE="monitor"
+    fi
+    if [ "$VIFTYPE" = "2" ]; then
+        VIFTYPE="managed"
+    fi
+    echo "Proceeding..."
+    sudo iw phy "$IFACEPHY" interface add "$MAKEVIFNAME" type "$VIFTYPE"
+    echo "Made Interface: "$MAKEVIFNAME""
+    echo "Done..."
+    exit
+fi
+
+if [ "$THECHOICE" = "13" ]; then
+    DELVIF
+fi
+
+if [ "$THECHOICE" = "14" ]; then
+    LISTCODES
+fi
+
+if [ "$THECHOICE" = "15" ]; then
+    PRINTCARDINFONEW
+fi
+
+if [ "$THECHOICE" = "16" ]; then
+    MAKENLMON
+fi
+
+if [ "$THECHOICE" = "17" ]; then
+    MACLOOKUP
+fi
+# end of start menu args
