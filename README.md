@@ -52,3 +52,8 @@ To get started, check out the wiki page [here](https://github.com/chiefbigrubber
 * Basic understanding of Wi-Fi subsystem and how modes, settings, etc, all work.
 
 If you don't know one of these things, check out the wiki for starting info [here](https://github.com/chiefbigrubberduck/wifi-man/wiki/)
+
+-----------------------------------------------------------------------------------------------------------------------------
+
+## Disclaimer
+I (chiefbigrubberduck) am not responsible for any issues or problems (of any sort) regarding anything related or tangentially related to the hosted scripts. The user must be aware of what these scripts will do. They are for educational purposes only. Anything outside of what is considered "educational" is not endorsed by me, nor my collaborators. Regard the AGPL-3.0 License for more information.
