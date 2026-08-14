@@ -26,6 +26,8 @@
  * Print interface information
  * Look up MAC address's (Not working, still under development)
 
+Check out the wiki's [about](https://github.com/chiefbigrubberduck/wifi-man/wiki/About) for more info.
+
 ## Get Started
 To get started, check out the wiki page [here](https://github.com/chiefbigrubberduck/wifi-man/wiki/) for downloading, setting up, and using wifi-man to it's fullest. It is first **highly** recommended to check out the requirements and any other below paragraphs
 
