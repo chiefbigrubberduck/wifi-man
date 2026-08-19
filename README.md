@@ -11,6 +11,7 @@
 > As shown above, this project is still in beta, and does not guarantee stable performance, it has been tested, and performed fine, but reliability can not be guaranteed for every system. Your system won't explode ;), but the code is not yet been completely controlled, revised, and edited for max stability throughout the script.
 ----------------------------------------------------------------------------------------------------------
 
+## What is this?
  wifi-man is a tool for controlling advanced aspects of Wi-Fi in Linux - and only in Linux -. It allows you to...
  * Make interfaces
  * Remove interface (Not working, still under development)
