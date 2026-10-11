@@ -11,11 +11,11 @@
 > As shown above, this project is still in beta, and does not guarantee stable performance, it has been tested, and performed fine, but reliability can not be guaranteed for every system. Your system won't explode ;), but the code is not yet been completely controlled, revised, and edited for max stability throughout the script, so there may be syntax errors.
 
 > [!NOTE]
-> This script is currently written in Bash, essentially a very long bash script. In the upcoming future this tool will be re-written in C. This allows the tool to be completely dependency free, since in C it is easier to make the hardware changes that ensue monitor mode and other changes. This is currently being developed and while not be immediately implemented. 
+> This script is currently written in Bash, essentially a very long bash script. In the upcoming future this tool will be re-written in C. This allows the tool to be completely dependency free, since in C it is easier to make the hardware changes that ensue monitor mode and other changes. This is currently being developed and will not be immediately implemented. 
 ----------------------------------------------------------------------------------------------------------
 
 ## What is this?
- wifi-man is a tool for controlling advanced aspects of Wi-Fi in Linux - and only in Linux -. It allows you to...
+ wifi-man is a tool for controlling advanced aspects of Wi-Fi in Linux. This tool is for Linux ONLY.  It allows you to...
  * Make interfaces
  * Remove interface (Not working, still under development)
  * Set your card into monitor mode
@@ -28,7 +28,7 @@
  * Turn promiscuous mode on/off
  * Print phy information
  * Print interface information
- * Look up MAC address's (Not working, still under development)
+ * Look up MAC address's 
 
 Check out the wiki's [about](https://github.com/chiefbigrubberduck/wifi-man/wiki/About) for more info.
 
