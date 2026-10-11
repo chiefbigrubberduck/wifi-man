@@ -1,4 +1,4 @@
-# Wifi-Man (Wi-Fi Manager)
+# wifi-man (Wi-Fi Manager)
 ![Static Badge](https://img.shields.io/badge/Language_-_Bash-green)
 ![Static Badge](https://img.shields.io/badge/Wi--Fi_-_Management-blue)
 ![Static Badge](https://img.shields.io/badge/OS_-_Linux-neon)
