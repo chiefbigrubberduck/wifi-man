@@ -2,11 +2,8 @@
 Welcome! Thanks for contributing. Follow the below workflow:          
 
 - Open pull request
-- Run your idea by me
-- Write the code
 - Ask to merge
 - Code will get reviewed
-- It then gets merged
 
 Please keep in mind:                                                                                                            
 - Language/Translation is welcome!                                                                                              
