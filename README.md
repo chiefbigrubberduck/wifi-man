@@ -15,7 +15,7 @@
 ----------------------------------------------------------------------------------------------------------
 
 ## What is this?
- wifi-man is a tool for controlling advanced aspects of Wi-Fi in Linux. This tool is for Linux ONLY.  It allows you to...
+ wifi-man is a tool for controlling advanced aspects of networking in Linux. This tool is for Linux ONLY.  It allows you to...
  * Make interfaces
  * Remove interface (Not working, still under development)
  * Set your card into monitor mode
