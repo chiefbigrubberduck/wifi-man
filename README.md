@@ -2,7 +2,7 @@
 ![Static Badge](https://img.shields.io/badge/Language_-_Bash-green)
 ![Static Badge](https://img.shields.io/badge/Wi--Fi_-_Management-blue)
 ![Static Badge](https://img.shields.io/badge/OS_-_Linux-neon)
-![Static Badge](https://img.shields.io/badge/Version_-_0.5-red)
+![Static Badge](https://img.shields.io/badge/Version_-_0.8-red)
 ![Static Badge](https://img.shields.io/badge/Project%20Status%20-%20Alpha-green)
 ![Static Badge](https://img.shields.io/badge/OS%20-%20Linux-cyan)
 
