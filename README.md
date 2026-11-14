@@ -3,12 +3,12 @@
 ![Static Badge](https://img.shields.io/badge/Wi--Fi_-_Management-blue)
 ![Static Badge](https://img.shields.io/badge/OS_-_Linux-neon)
 ![Static Badge](https://img.shields.io/badge/Version_-_0.5-red)
-![Static Badge](https://img.shields.io/badge/Project%20Status%20-%20Beta-green)
+![Static Badge](https://img.shields.io/badge/Project%20Status%20-%20Alpha-green)
 ![Static Badge](https://img.shields.io/badge/OS%20-%20Linux-cyan)
 
 ---------------------------------------------------------------------------------------------------------
 > [!WARNING]
-> As shown above, this project is still in beta, and does not guarantee stable performance, it has been tested, and performed fine, but reliability can not be guaranteed for every system. Your system won't explode ;), but the code is not yet been completely controlled, revised, and edited for max stability throughout the script, so there may be syntax errors.
+> As shown above, this project is still in alpha, and does not guarantee stable performance, it has been tested, and performed fine, but reliability can not be guaranteed for every system. Your system won't explode ;), but the code is not yet been completely controlled, revised, and edited for max stability throughout the script, so there may be syntax errors.
 
 > [!NOTE]
 > This script is currently written in Bash, essentially a very long bash script. In the upcoming future this tool will be re-written in C. This allows the tool to be completely dependency free, since in C it is easier to make the hardware changes that ensue monitor mode and other changes. This is currently being developed and will not be immediately implemented. 
