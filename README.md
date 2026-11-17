@@ -50,12 +50,11 @@ To get started, check out the wiki page [here](https://github.com/chiefbigrubber
 * rfkill                                                                                                                      
                                                                                                             
 ### Things to know
+This is recommended knowledge for use of wifi-man.
 * Basic understanding of Wi-Fi in Linux
 * Basic CLI commands
 * Bash execution and option use
 * Basic understanding of Wi-Fi subsystem and how modes, settings, etc, all work.
-
-If you don't know one of these things, check out the wiki for starting info [here](https://github.com/chiefbigrubberduck/wifi-man/wiki/)
 
 -----------------------------------------------------------------------------------------------------------------------------
 
